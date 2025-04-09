@@ -2,6 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "semantic_analysis.h"
+#include "intermediate_code.h"
+#include "ast.h"
 
 extern int line_num;
 extern int column_num;
@@ -11,7 +14,6 @@ extern FILE* yyin;
 void yyerror(const char* s);
 int yylex();
 
-// Symbol table declaration (basic version)
 typedef struct symbol_table_entry {
     char* name;
     char* type;
@@ -21,9 +23,13 @@ typedef struct symbol_table_entry {
 
 extern symbol_table_entry* symbol_table;
 extern int current_scope;
+extern void generate_tac_for_expression(ast_node* node);
+extern void generate_tac_for_statement(ast_node* node);
+extern void optimize_tac_code();
+extern void generate_assembly_code(const char* output_file);
+extern ast_node* root;
 
-// Function prototypes for symbol table operations
-void add_symbol(char* name, char* type);
+void add_symbol(char* name, char* type, int line_num, int is_method);
 symbol_table_entry* lookup_symbol(char* name);
 void enter_scope();
 void exit_scope();
@@ -35,6 +41,7 @@ void exit_scope();
     char char_val;
     char* string_val;
     char* id;
+    ast_node* node;
 }
 
 /* Token definitions */
@@ -60,26 +67,56 @@ void exit_scope();
 %token <string_val> STRING_LITERAL
 %token <id> IDENTIFIER
 
+/* Type declarations */
 %type <id> type
+%type <node> program class_declaration
+
+/* Precedence and associativity */
+%left OR
+%left AND
+%left EQUAL NOT_EQUAL
+%left GREATER LESS GREATER_EQUAL LESS_EQUAL
+%left PLUS MINUS
+%left MULTIPLY DIVIDE MODULO
+%right NOT INCREMENT DECREMENT
+%nonassoc IF
+%nonassoc ELSE
+
+/* Expect 1 shift/reduce conflict (dangling else) */
+%expect 1
 
 %%
 
-/* Grammar Rules */
+/* Grammar rules remain unchanged; key snippet: */
+if_statement
+    : IF LEFT_PAREN expression RIGHT_PAREN statement
+    | IF LEFT_PAREN expression RIGHT_PAREN statement ELSE statement
+    ;
 
+/* Rest of the grammar as previously provided */
 program
     : class_declaration
+        { root = $1; }
     | program class_declaration
+        { root = create_block_node((ast_node*[]){$1, $2}, 2); }
     ;
 
 class_declaration
     : CLASS IDENTIFIER LEFT_BRACE class_body RIGHT_BRACE
-        { printf("Class declared: %s\n", $2); }
+        { 
+            printf("Class declared: %s\n", $2);
+            { $$ = create_block_node($4.statements, $4.statement_count); }        
+        }
     ;
 
 class_body
-    : /* empty */
-    | class_member_declaration
-    | class_body class_member_declaration
+    : { $$.statements = NULL; $$.statement_count = 0; }
+    | class_member_declarations
+    ;
+
+class_member_declarations
+    : class_member_declaration
+    | class_member_declarations class_member_declaration
     ;
 
 class_member_declaration
@@ -91,18 +128,25 @@ field_declaration
     : type IDENTIFIER SEMICOLON
         { 
             printf("Field declared: %s of type %s\n", $2, $1);
-            add_symbol($2, $1);
+            add_symbol($2, $1, line_num, 0);
         }
     | type IDENTIFIER ASSIGN expression SEMICOLON
         { 
             printf("Field declared with initialization: %s of type %s\n", $2, $1);
-            add_symbol($2, $1);
+            add_symbol($2, $1, line_num, 0);
         }
     ;
 
 method_declaration
     : type IDENTIFIER LEFT_PAREN parameter_list_opt RIGHT_PAREN LEFT_BRACE
-        { enter_scope(); }
+        { 
+            enter_scope(); 
+            set_current_method_type($1); 
+            ast_node** stmts = malloc(sizeof(ast_node*));
+            stmts[0] = create_declaration_node($1.id, $2.id, NULL);
+            $$ = create_block_node(stmts, 1);
+            add_symbol($2.id, $1.id, line_num, 1);
+        }
       statement_list 
       RIGHT_BRACE
         { 
@@ -110,15 +154,15 @@ method_declaration
             exit_scope();
         }
     | VOID IDENTIFIER LEFT_PAREN parameter_list_opt RIGHT_PAREN LEFT_BRACE
-        { enter_scope(); }
+        { enter_scope(); set_current_method_type("void"); }
       statement_list 
       RIGHT_BRACE
         { 
             printf("Void method declared: %s\n", $2);
             exit_scope();
         }
-    | PUBLIC STATIC VOID MAIN LEFT_PAREN STRING_LITERAL LEFT_BRACKET RIGHT_BRACKET IDENTIFIER RIGHT_PAREN LEFT_BRACE
-        { enter_scope(); }
+    | PUBLIC STATIC VOID MAIN LEFT_PAREN IDENTIFIER LEFT_BRACKET RIGHT_BRACKET IDENTIFIER RIGHT_PAREN LEFT_BRACE
+        { enter_scope(); set_current_method_type("void"); }
       statement_list 
       RIGHT_BRACE
         { 
@@ -141,7 +185,7 @@ parameter
     : type IDENTIFIER
         { 
             printf("Parameter: %s of type %s\n", $2, $1);
-            add_symbol($2, $1);
+            add_symbol($2, $1, line_num, 1);
         }
     ;
 
@@ -151,7 +195,7 @@ type
     | DOUBLE { $$ = strdup("double"); }
     | CHAR { $$ = strdup("char"); }
     | BOOLEAN { $$ = strdup("boolean"); }
-    | IDENTIFIER { $$ = $1; }  // For class types
+    | IDENTIFIER { $$ = $1; }
     ;
 
 statement_list
@@ -189,22 +233,18 @@ declaration_statement
     : type IDENTIFIER SEMICOLON
         { 
             printf("Variable declared: %s of type %s\n", $2, $1);
-            add_symbol($2, $1);
+            add_symbol($2, $1, line_num, 0);
         }
     | type IDENTIFIER ASSIGN expression SEMICOLON
         { 
             printf("Variable declared with initialization: %s of type %s\n", $2, $1);
-            add_symbol($2, $1);
+            add_symbol($2, $1, line_num, 0);
         }
-    ;
-
-if_statement
-    : IF LEFT_PAREN expression RIGHT_PAREN statement
-    | IF LEFT_PAREN expression RIGHT_PAREN statement ELSE statement
     ;
 
 for_statement
     : FOR LEFT_PAREN expression_opt SEMICOLON expression_opt SEMICOLON expression_opt RIGHT_PAREN statement
+    | FOR LEFT_PAREN declaration_statement expression_opt SEMICOLON expression_opt RIGHT_PAREN statement
     ;
 
 while_statement
@@ -215,8 +255,9 @@ do_while_statement
     : DO statement WHILE LEFT_PAREN expression RIGHT_PAREN SEMICOLON
     ;
 
-switch_statement
-    : SWITCH LEFT_PAREN expression RIGHT_PAREN LEFT_BRACE switch_block RIGHT_BRACE
+switch_statement:
+      SWITCH LEFT_PAREN expression RIGHT_PAREN switch_block
+      { $$ = create_block_node(NULL, 0); }  // Simplified for now
     ;
 
 switch_block
@@ -238,9 +279,11 @@ return_statement
     : RETURN expression_opt SEMICOLON
     ;
 
-try_catch_statement
-    : TRY block catch_clauses
+try_catch_statement:
+    TRY block catch_clauses
+        { $$ = create_block_node(NULL, 0); }
     | TRY block catch_clauses finally_clause
+        { $$ = create_block_node(NULL, 0); }
     ;
 
 catch_clauses
@@ -250,7 +293,7 @@ catch_clauses
 
 catch_clause
     : CATCH LEFT_PAREN type IDENTIFIER RIGHT_PAREN block
-        { add_symbol($4, $3); }
+        { add_symbol($4, $3, line_num, 0); }
     ;
 
 finally_clause

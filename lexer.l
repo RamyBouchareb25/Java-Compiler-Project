@@ -100,6 +100,12 @@ LINEBREAK   \n|\r\n
 "."         { count_column(); return DOT; }
 ":"         { count_column(); return COLON; }
 
+"System.out.println" { 
+    count_column(); 
+    yylval.string_val = strdup("println"); 
+    return PRINT; 
+}
+
 {INTEGER}   { 
     count_column(); 
     yylval.int_val = atoi(yytext); 

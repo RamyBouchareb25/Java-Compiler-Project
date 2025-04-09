@@ -55,5 +55,12 @@
   "C_Cpp_Runner.useLeakSanitizer": false,
   "C_Cpp_Runner.showCompilationTime": false,
   "C_Cpp_Runner.useLinkTimeOptimization": false,
-  "C_Cpp_Runner.msvcSecureNoWarnings": false
+  "C_Cpp_Runner.msvcSecureNoWarnings": false,
+  "files.associations": {
+    "*.css": "tailwindcss",
+    "ast.h": "c",
+    "intermediate_code.h": "c",
+    "semantic_analysis.h": "c",
+    "tac_generator.h": "c"
+  }
 }
