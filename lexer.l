@@ -32,6 +32,7 @@ LINEBREAK   \n|\r\n
 "static"    { count_column(); return STATIC; }
 "void"      { count_column(); return VOID; }
 "main"      { count_column(); return MAIN; }
+"this"      { count_column(); return THIS; }
 
 "int"       { count_column(); return INT; }
 "float"     { count_column(); return FLOAT; }

@@ -30,10 +30,15 @@ symbol_table_entry* create_symbol(char* name, char* type, int line_defined, int 
 
 // Add a symbol to the symbol table
 void add_symbol(char* name, char* type, int line_defined, int is_method) {
-    // First check if symbol already exists in current scope
+    // Check if symbol already exists in current scope only (not parent scopes)
     symbol_table_entry* current = symbol_table;
     while (current != NULL) {
         if (current->scope == current_scope && strcmp(current->name, name) == 0) {
+            // For method parameters, allow shadowing of class fields
+            if (current_scope > 0 && !current->is_method) {
+                // This is a parameter shadowing a field - allow it
+                break;
+            }
             printf("Semantic_Error, %d, %d, Redeclaration of '%s' in the same scope\n", 
                    line_defined, 0, name);
             return;
@@ -47,6 +52,19 @@ void add_symbol(char* name, char* type, int line_defined, int is_method) {
     symbol_table = new_entry;
     
     printf("Added symbol: %s (type: %s) in scope %d\n", name, type, current_scope);
+}
+
+symbol_table_entry* lookup_symbol_in_scope(char* name, int scope) {
+    symbol_table_entry* current = symbol_table;
+    
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0 && current->scope == scope) {
+            return current;
+        }
+        current = current->next;
+    }
+    
+    return NULL;
 }
 
 // Look up a symbol in the symbol table - checks current scope and all parent scopes

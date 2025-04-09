@@ -23,7 +23,7 @@ extern symbol_table_entry* symbol_table;
 extern int current_scope;
 
 // Function prototypes for symbol table operations
-void add_symbol(char* name, char* type);
+void add_symbol(char* name, char* type, int line_num, int is_method);
 symbol_table_entry* lookup_symbol(char* name);
 void enter_scope();
 void exit_scope();
@@ -44,6 +44,7 @@ void exit_scope();
 %token TRY CATCH FINALLY THROW
 %token TRUE_VAL FALSE_VAL NULL_VAL
 %token PRINT
+%token THIS
 
 %token PLUS MINUS MULTIPLY DIVIDE MODULO
 %token INCREMENT DECREMENT
@@ -91,22 +92,44 @@ field_declaration
     : type IDENTIFIER SEMICOLON
         { 
             printf("Field declared: %s of type %s\n", $2, $1);
-            add_symbol($2, $1);
+            add_symbol($2, $1, line_num, 0);
         }
     | type IDENTIFIER ASSIGN expression SEMICOLON
         { 
             printf("Field declared with initialization: %s of type %s\n", $2, $1);
-            add_symbol($2, $1);
+            add_symbol($2, $1, line_num, 0);
         }
     ;
 
 method_declaration
-    : type IDENTIFIER LEFT_PAREN parameter_list_opt RIGHT_PAREN LEFT_BRACE
+    : type IDENTIFIER LEFT_PAREN
+            { enter_scope(); } /* Enter scope before parameters */
+        parameter_list_opt RIGHT_PAREN LEFT_BRACE
+        statement_list 
+        RIGHT_BRACE
+            { 
+                printf("Method declared: %s returning %s\n", $2, $1);
+                exit_scope();
+            }
+    | type IDENTIFIER LEFT_PAREN parameter_list_opt RIGHT_PAREN LEFT_BRACE
         { enter_scope(); }
       statement_list 
       RIGHT_BRACE
         { 
             printf("Method declared: %s returning %s\n", $2, $1);
+            exit_scope();
+        }
+        | IDENTIFIER LEFT_PAREN
+        { 
+            enter_scope();
+            // Check if this is a constructor
+            // This is a constructor - it has the same name as the class
+            printf("Constructor declared for class: %s\n", $1);
+        }
+      parameter_list_opt RIGHT_PAREN LEFT_BRACE
+      statement_list 
+      RIGHT_BRACE
+        { 
             exit_scope();
         }
     | VOID IDENTIFIER LEFT_PAREN parameter_list_opt RIGHT_PAREN LEFT_BRACE
@@ -117,7 +140,18 @@ method_declaration
             printf("Void method declared: %s\n", $2);
             exit_scope();
         }
-    | PUBLIC STATIC VOID MAIN LEFT_PAREN STRING_LITERAL LEFT_BRACKET RIGHT_BRACKET IDENTIFIER RIGHT_PAREN LEFT_BRACE
+    | IDENTIFIER LEFT_PAREN parameter_list_opt RIGHT_PAREN LEFT_BRACE
+        { 
+            enter_scope();
+            // This is a constructor - it has the same name as the class
+            printf("Constructor declared for class: %s\n", $1);
+        }
+      statement_list 
+      RIGHT_BRACE
+        { 
+            exit_scope();
+        }
+    | PUBLIC STATIC VOID MAIN LEFT_PAREN IDENTIFIER LEFT_BRACKET RIGHT_BRACKET IDENTIFIER RIGHT_PAREN LEFT_BRACE
         { enter_scope(); }
       statement_list 
       RIGHT_BRACE
@@ -141,7 +175,7 @@ parameter
     : type IDENTIFIER
         { 
             printf("Parameter: %s of type %s\n", $2, $1);
-            add_symbol($2, $1);
+            add_symbol($2, $1, line_num, 0);
         }
     ;
 
@@ -152,6 +186,12 @@ type
     | CHAR { $$ = strdup("char"); }
     | BOOLEAN { $$ = strdup("boolean"); }
     | IDENTIFIER { $$ = $1; }  // For class types
+    | type LEFT_BRACKET RIGHT_BRACKET {
+        // Handle array type like int[]
+        char* array_type = malloc(strlen($1) + 3); // +3 for [] and null terminator
+        sprintf(array_type, "%s[]", $1);
+        $$ = array_type;
+    }
     ;
 
 statement_list
@@ -189,12 +229,12 @@ declaration_statement
     : type IDENTIFIER SEMICOLON
         { 
             printf("Variable declared: %s of type %s\n", $2, $1);
-            add_symbol($2, $1);
+            add_symbol($2, $1, line_num, 0);
         }
     | type IDENTIFIER ASSIGN expression SEMICOLON
         { 
             printf("Variable declared with initialization: %s of type %s\n", $2, $1);
-            add_symbol($2, $1);
+            add_symbol($2, $1, line_num, 0);
         }
     ;
 
@@ -205,6 +245,7 @@ if_statement
 
 for_statement
     : FOR LEFT_PAREN expression_opt SEMICOLON expression_opt SEMICOLON expression_opt RIGHT_PAREN statement
+    | FOR LEFT_PAREN declaration_statement expression_opt SEMICOLON expression_opt RIGHT_PAREN statement
     ;
 
 while_statement
@@ -250,7 +291,7 @@ catch_clauses
 
 catch_clause
     : CATCH LEFT_PAREN type IDENTIFIER RIGHT_PAREN block
-        { add_symbol($4, $3); }
+        { add_symbol($4, $3, line_num, 0); }
     ;
 
 finally_clause
@@ -345,7 +386,8 @@ postfix_expression
     ;
 
 primary_expression
-    : IDENTIFIER
+    : THIS
+    | IDENTIFIER
         {
             symbol_table_entry* entry = lookup_symbol($1);
             if (entry == NULL) {

@@ -57,6 +57,27 @@ const char* type_code_to_string(int type_code) {
     }
 }
 
+// For field access expressions like this.field
+type_info check_field_access(char* object_name, char* field_name) {
+    type_info result = {TYPE_ERROR, NULL, 0};
+    
+    // Special case for 'this'
+    if (strcmp(object_name, "this") == 0) {
+        // Look up the field in the class scope (scope 0)
+        // In a real compiler, you'd do more sophisticated handling here
+        symbol_table_entry* entry = lookup_symbol_in_scope(field_name, 0);
+        if (entry) {
+            result.type_code = get_type_code(entry->type);
+            return result;
+        }
+    }
+    
+    // Handle regular object field access
+    // ...
+    
+    return result;
+}
+
 // Get type information for an identifier
 type_info get_identifier_type(char* id) {
     type_info result = {TYPE_ERROR, NULL, 0};
