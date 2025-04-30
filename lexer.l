@@ -34,6 +34,9 @@ LINEBREAK   \n|\r\n
 "void"      { count_column(); return VOID; }
 "main"      { count_column(); return MAIN; }
 "this"      { count_column(); return THIS; }
+"new"      { count_column(); return NEW; }
+"ArithmeticException" { count_column(); return ARITHMETIC_EXCEPTION; }
+"Exception" { count_column(); return EXCEPTION; }
 
 "int"       { count_column(); return INT; }
 "float"     { count_column(); return FLOAT; }

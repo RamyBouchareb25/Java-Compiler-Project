@@ -60,16 +60,16 @@ class Main {
 
         // Structure de contrôle switch
         int choice = 1;
-        switch (choice) {
-            case 1:
-                System.out.println("Choice is 1");
-                break;
-            case 2:
-                System.out.println("Choice is 2");
-                break;
-            default:
-                System.out.println("Invalid choice");
-        }
+        // switch (choice) {
+        //     case 1:
+        //         System.out.println("Choice is 1");
+        //         break;
+        //     case 2:
+        //         System.out.println("Choice is 2");
+        //         break;
+        //     default:
+        //         System.out.println("Invalid choice");
+        // }
 
         // Boucle while
         int i = 0;

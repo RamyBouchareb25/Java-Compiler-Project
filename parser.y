@@ -3,7 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "colors.h" // Ajout de l'inclusion pour les couleurs
+#include "parser_helper.h" // Ajout de l'inclusion pour les fonctions d'aide
 
+void enhanced_syntax_error(const char* msg, const char* filename);
 extern int line_num;
 extern int column_num;
 extern char* yytext;
@@ -46,7 +48,7 @@ void exit_scope();
 %token TRUE_VAL FALSE_VAL NULL_VAL
 %token PRINT
 %token THIS
-
+%token NEW
 %token CAST_INT CAST_FLOAT CAST_DOUBLE CAST_CHAR CAST_BOOLEAN CAST_STRING CAST_CUSTOM
 
 %token PLUS MINUS MULTIPLY DIVIDE MODULO
@@ -65,6 +67,9 @@ void exit_scope();
 %token <id> IDENTIFIER
 %token <id> CAST_CUSTOM
 
+
+%token ARITHMETIC_EXCEPTION EXCEPTION
+
 %type <id> type
 
 %%
@@ -77,8 +82,14 @@ program
     ;
 
 class_declaration
-    : CLASS IDENTIFIER LEFT_BRACE class_body RIGHT_BRACE
-        { printf("Class declared: %s\n", $2); }
+    : CLASS IDENTIFIER LEFT_BRACE
+        { 
+            printf("Class declared: %s\n", $2); 
+            // Ajouter la classe à la table des symboles comme un type
+            add_symbol($2, "class", line_num, 1);
+        }
+      class_body 
+      RIGHT_BRACE
     ;
 
 class_body
@@ -224,6 +235,8 @@ statement
     | return_statement
     | try_catch_statement
     | block
+    | BREAK SEMICOLON    /* Ajout de cette règle pour gérer les 'break;' */
+    | CONTINUE SEMICOLON /* Ajout de cette règle pour gérer les 'continue;' */
     ;
 
 block
@@ -250,6 +263,25 @@ declaration_statement
             printf("Variable declared with initialization: %s of type %s\n", $2, $1);
             add_symbol($2, $1, line_num, 0);
         }
+    | type LEFT_BRACKET RIGHT_BRACKET IDENTIFIER ASSIGN array_initializer SEMICOLON
+        {
+            char array_type[64];
+            sprintf(array_type, "%s[]", $1);
+            printf("Array declared with initialization: %s of type %s\n", $4, array_type);
+            add_symbol($4, array_type, line_num, 0);
+        }
+    ;
+// Ajout d'une règle pour l'initialisation d'un tableau
+array_initializer
+    : LEFT_BRACE array_elements RIGHT_BRACE
+        { printf("Array initializer with elements\n"); }
+    ;
+
+array_elements
+    : expression
+        { printf("Array element added\n"); }
+    | array_elements COMMA expression
+        { printf("Array element added\n"); }
     ;
 
 if_statement
@@ -284,8 +316,12 @@ do_while_statement
     : DO statement WHILE LEFT_PAREN expression RIGHT_PAREN SEMICOLON
     ;
 
+
 switch_statement
     : SWITCH LEFT_PAREN expression RIGHT_PAREN LEFT_BRACE switch_block RIGHT_BRACE
+      {
+        printf("Completed parsing switch statement\n");
+      }
     ;
 
 switch_block
@@ -300,7 +336,9 @@ switch_labels
 
 switch_label
     : CASE expression COLON statement_list
+    | CASE expression COLON
     | DEFAULT COLON statement_list
+    | DEFAULT COLON
     ;
 
 return_statement
@@ -318,8 +356,18 @@ catch_clauses
     ;
 
 catch_clause
-    : CATCH LEFT_PAREN type IDENTIFIER RIGHT_PAREN block
-        { add_symbol($4, $3, line_num, 0); }
+    : CATCH LEFT_PAREN type IDENTIFIER RIGHT_PAREN
+        { enter_scope(); add_symbol($4, $3, line_num, 0); }
+      block
+        { exit_scope(); }
+    | CATCH LEFT_PAREN ARITHMETIC_EXCEPTION IDENTIFIER RIGHT_PAREN
+        { enter_scope(); printf("Catch block for predefined exception: ArithmeticException\n"); add_symbol($4, "ArithmeticException", line_num, 0); }
+      block
+        { exit_scope(); }
+    | CATCH LEFT_PAREN EXCEPTION IDENTIFIER RIGHT_PAREN
+        { enter_scope(); printf("Catch block for generic Exception\n"); add_symbol($4, "Exception", line_num, 0); }
+      block
+        { exit_scope(); }
     ;
 
 finally_clause
@@ -462,7 +510,22 @@ primary_expression
     | LEFT_PAREN expression RIGHT_PAREN
     | PRINT LEFT_PAREN expression RIGHT_PAREN
     | PRINT LEFT_PAREN RIGHT_PAREN
+    | NEW IDENTIFIER LEFT_PAREN argument_list_opt RIGHT_PAREN
+        {
+            // Vérifier si la classe existe
+            symbol_table_entry* entry = lookup_symbol($2);
+            if (entry == NULL) {
+                printf("%sSemantic_Error, %d, %d, Undefined class type: %s%s\n", ANSI_YELLOW, line_num, column_num, $2, ANSI_RESET);
+            }
+            printf("Object instantiation of class: %s\n", $2);
+        }
+    | NEW type LEFT_BRACKET expression RIGHT_BRACKET
+        {
+            // Création d'un tableau
+            printf("Array instantiation of type: %s\n", $2);
+        }
     ;
+
 
 argument_list_opt
     : /* empty */
@@ -488,6 +551,7 @@ literal
 
 void yyerror(const char* s) {
     printf("%sSyntax_Error, %d, %d, %s%s\n", ANSI_ORANGE, line_num, column_num, s, ANSI_RESET);
+     enhanced_syntax_error(s, current_filename);
 }
 
 int main(int argc, char **argv) {
@@ -498,6 +562,12 @@ int main(int argc, char **argv) {
             return 1;
         }
         yyin = file;
+        
+        // Stocker le nom du fichier pour les diagnostics
+        strcpy(current_filename, argv[1]);
+    } else {
+        // Si aucun fichier n'est spécifié, indiquez une valeur par défaut
+        strcpy(current_filename, "stdin");
     }
     
     yyparse();
