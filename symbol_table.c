@@ -18,6 +18,10 @@ typedef struct symbol_table_entry {
 symbol_table_entry* symbol_table = NULL;
 int current_scope = 0;
 
+// Prototypes de fonctions
+symbol_table_entry* lookup_symbol_in_scope(char* name, int scope);
+symbol_table_entry* lookup_symbol(char* name);
+
 // Create a new symbol table entry
 symbol_table_entry* create_symbol(char* name, char* type, int line_defined, int is_method) {
     symbol_table_entry* entry = (symbol_table_entry*)malloc(sizeof(symbol_table_entry));

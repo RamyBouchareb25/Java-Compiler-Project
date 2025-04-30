@@ -1,63 +1,51 @@
 #ifndef TOKEN_DEFS_H
 #define TOKEN_DEFS_H
 
-// Forward declaration of symbol table entry structure
-typedef struct symbol_table_entry symbol_table_entry;
+// Opérateurs de base pour les opérations TAC
+#define OP_ADD         1
+#define OP_SUB         2
+#define OP_MUL         3
+#define OP_DIV         4
+#define OP_MOD         5
+#define OP_AND         6
+#define OP_OR          7
+#define OP_EQ          8
+#define OP_NE          9
+#define OP_LT          10
+#define OP_LE          11
+#define OP_GT          12
+#define OP_GE          13
+#define OP_NOT         14
+#define OP_NEG         15
+#define OP_INC         16
+#define OP_DEC         17
+#define OP_POST_INC    18
+#define OP_POST_DEC    19
+#define OP_ASSIGN      20
+#define OP_GOTO        21
+#define OP_IF          22
+#define OP_LABEL       23
+#define OP_CALL        24
+#define OP_RETURN      25
+#define OP_NEW         26
 
-// Function prototype for lookup_symbol_in_scope
-symbol_table_entry* lookup_symbol_in_scope(char* name, int scope);
+// Ajout des opérateurs manquants
+#define OP_IFNOT       27
+#define OP_PARAM       28
+#define OP_ARRAY_LOAD  29
+#define OP_ARRAY_STORE 30
+#define OP_FIELD_LOAD  31
+#define OP_FIELD_STORE 32
+#define OP_NEW_ARRAY   33
 
-// Token definitions
-#define GREATER_EQUAL 256
-#define LESS_EQUAL    257
-#define EQUAL         258
-#define NOT_EQUAL     259
-#define AND           260
-#define OR            261
-
-// Type definitions
-#define TYPE_INT     1
-#define TYPE_FLOAT   2
-#define TYPE_DOUBLE  3
-#define TYPE_CHAR    4
-#define TYPE_BOOLEAN 5
-#define TYPE_STRING  6
-#define TYPE_OBJECT  7
-#define TYPE_VOID    8
-#define TYPE_ERROR   9
-#define TYPE_NULL    10
-
-// Three-address code operation codes
-enum {
-    OP_ADD = 1,     // +
-    OP_SUB,         // -
-    OP_MUL,         // *
-    OP_DIV,         // /
-    OP_MOD,         // %
-    OP_NEG,         // unary -
-    OP_NOT,         // logical not
-    OP_AND,         // logical and
-    OP_OR,          // logical or
-    OP_LT,          // 
-    OP_LE,          // <=
-    OP_GT,          // >
-    OP_GE,          // >=
-    OP_EQ,          // ==
-    OP_NE,          // !=
-    OP_ASSIGN,      // =
-    OP_GOTO,        // goto
-    OP_IF,          // if
-    OP_IFNOT,       // ifnot
-    OP_PARAM,       // parameter
-    OP_CALL,        // function call
-    OP_RETURN,      // return
-    OP_LABEL,       // label
-    OP_ARRAY_STORE, // array store
-    OP_ARRAY_LOAD,  // array load
-    OP_FIELD_STORE, // field store
-    OP_FIELD_LOAD,  // field load
-    OP_NEW,         // new object
-    OP_NEW_ARRAY    // new array
-};
+// Token constants pour le switch - attention aux conflits avec Bison
+// Ne les utilisez pas dans la phase sémantique, mais seulement dans
+// les fonctions de traduction comme token_to_tac_op
+#define TOKEN_AND          1001
+#define TOKEN_OR           1002
+#define TOKEN_LESS_EQUAL   1003
+#define TOKEN_GREATER_EQUAL 1004
+#define TOKEN_EQUAL        1005
+#define TOKEN_NOT_EQUAL    1006
 
 #endif /* TOKEN_DEFS_H */

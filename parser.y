@@ -4,7 +4,8 @@
 #include <string.h>
 #include "colors.h" // Ajout de l'inclusion pour les couleurs
 #include "parser_helper.h" // Ajout de l'inclusion pour les fonctions d'aide
-
+#include "token_defs.h" // Pour les définitions des opérateurs TAC
+#include "tac.h"
 void enhanced_syntax_error(const char* msg, const char* filename);
 extern int line_num;
 extern int column_num;
@@ -25,6 +26,7 @@ typedef struct symbol_table_entry {
 extern symbol_table_entry* symbol_table;
 extern int current_scope;
 
+
 // Function prototypes for symbol table operations
 void add_symbol(char* name, char* type, int line_num, int is_method);
 symbol_table_entry* lookup_symbol(char* name);
@@ -32,12 +34,19 @@ void enter_scope();
 void exit_scope();
 %}
 
+// Cette section sera ajoutée au fichier d'en-tête généré (parser.tab.h)
+
+%code requires {
+    #include "tac.h"
+}
+
 %union {
     int int_val;
     float float_val;
     char char_val;
     char* string_val;
     char* id;
+    tac_operand operand; // Ajout pour le code intermédiaire
 }
 
 /* Token definitions */
@@ -71,7 +80,13 @@ void exit_scope();
 %token ARITHMETIC_EXCEPTION EXCEPTION
 
 %type <id> type
-
+%type <operand> expression expression_opt
+%type <operand> assignment_expression conditional_expression
+%type <operand> logical_or_expression logical_and_expression
+%type <operand> equality_expression relational_expression
+%type <operand> additive_expression multiplicative_expression
+%type <operand> unary_expression postfix_expression primary_expression
+%type <operand> literal
 %%
 
 /* Grammar Rules */
@@ -285,8 +300,63 @@ array_elements
     ;
 
 if_statement
-    : IF LEFT_PAREN expression RIGHT_PAREN statement
-    | IF LEFT_PAREN expression RIGHT_PAREN statement ELSE statement
+    : IF LEFT_PAREN expression RIGHT_PAREN 
+        {
+            // Générer le code intermédiaire pour l'expression de condition
+            // Créer une étiquette pour le "else" ou la fin du if
+            tac_operand else_label = create_label();
+            
+            // Genérer un jump conditionnel - si la condition est fausse, sauter à l'étiquette else/end
+            generate_ifnot($3, else_label);
+            
+            // Empiler l'étiquette pour une utilisation ultérieure
+            $<operand>$ = else_label;
+        }
+      statement
+        {
+            // Créer une étiquette pour la fin du if
+            tac_operand end_label = create_label();
+            
+            // Générer un saut inconditionnel vers la fin (pour sauter le bloc else)
+            generate_goto(end_label);
+            
+            // Placer l'étiquette else/end ici
+            generate_label_tac($<operand>5);
+            
+            // Empiler l'étiquette de fin pour une utilisation avec else
+            $<operand>$ = end_label;
+        }
+    | IF LEFT_PAREN expression RIGHT_PAREN
+        {
+            // Générer le code intermédiaire pour l'expression de condition
+            // Créer une étiquette pour le "else"
+            tac_operand else_label = create_label();
+            
+            // Genérer un jump conditionnel - si la condition est fausse, sauter au else
+            generate_ifnot($3, else_label);
+            
+            // Empiler l'étiquette pour une utilisation ultérieure
+            $<operand>$ = else_label;
+        }
+      statement ELSE
+        {
+            // Créer une étiquette pour la fin du if-else
+            tac_operand end_label = create_label();
+            
+            // Générer un saut inconditionnel vers la fin (pour sauter le bloc else)
+            generate_goto(end_label);
+            
+            // Placer l'étiquette else ici
+            generate_label_tac($<operand>5);
+            
+            // Empiler l'étiquette de fin
+            $<operand>$ = end_label;
+        }
+      statement
+        {
+            // Placer l'étiquette de fin après le bloc else
+            generate_label_tac($<operand>8);
+        }
     ;
 
 for_statement
@@ -409,107 +479,237 @@ conditional_expression
 
 logical_or_expression
     : logical_and_expression
+        {
+            $$ = $1;
+        }
     | logical_or_expression OR logical_and_expression
+        {
+            $$ = generate_binary_op(OP_OR, $1, $3);
+        }
     ;
 
 logical_and_expression
     : equality_expression
+        {
+            $$ = $1;
+        }
     | logical_and_expression AND equality_expression
+        {
+            $$ = generate_binary_op(OP_AND, $1, $3);
+        }
     ;
 
 equality_expression
     : relational_expression
+        {
+            $$ = $1;
+        }
     | equality_expression EQUAL relational_expression
+        {
+            $$ = generate_binary_op(OP_EQ, $1, $3);
+        }
     | equality_expression NOT_EQUAL relational_expression
+        {
+            $$ = generate_binary_op(OP_NE, $1, $3);
+        }
     ;
 
 relational_expression
     : additive_expression
+        {
+            $$ = $1;
+        }
     | relational_expression GREATER additive_expression
+        {
+            $$ = generate_binary_op(OP_GT, $1, $3);
+        }
     | relational_expression LESS additive_expression
+        {
+            $$ = generate_binary_op(OP_LT, $1, $3);
+        }
     | relational_expression GREATER_EQUAL additive_expression
+        {
+            $$ = generate_binary_op(OP_GE, $1, $3);
+        }
     | relational_expression LESS_EQUAL additive_expression
+        {
+            $$ = generate_binary_op(OP_LE, $1, $3);
+        }
     ;
 
 additive_expression
     : multiplicative_expression
+        {
+            $$ = $1;
+        }
     | additive_expression PLUS multiplicative_expression
+        {
+            $$ = generate_binary_op(OP_ADD, $1, $3);
+        }
     | additive_expression MINUS multiplicative_expression
+        {
+            $$ = generate_binary_op(OP_SUB, $1, $3);
+        }
     ;
 
 multiplicative_expression
     : unary_expression
+        {
+            $$ = $1;
+        }
     | multiplicative_expression MULTIPLY unary_expression
+        {
+            $$ = generate_binary_op(OP_MUL, $1, $3);
+        }
     | multiplicative_expression DIVIDE unary_expression
+        {
+            $$ = generate_binary_op(OP_DIV, $1, $3);
+        }
     | multiplicative_expression MODULO unary_expression
+        {
+            $$ = generate_binary_op(OP_MOD, $1, $3);
+        }
     ;
 
 unary_expression
     : postfix_expression
+        {
+            $$ = $1;
+        }
     | INCREMENT unary_expression
+        {
+            // Génération de code pour pré-incrément
+            $$ = generate_unary_op(OP_INC, $2);
+        }
     | DECREMENT unary_expression
+        {
+            // Génération de code pour pré-décrément
+            $$ = generate_unary_op(OP_DEC, $2);
+        }
     | PLUS unary_expression
+        {
+            // Pas d'effet sur l'expression
+            $$ = $2;
+        }
     | MINUS unary_expression
+        {
+            // Génération de code pour négation
+            $$ = generate_unary_op(OP_NEG, $2);
+        }
     | NOT unary_expression
+        {
+            // Génération de code pour NOT logique
+            $$ = generate_unary_op(OP_NOT, $2);
+        }
     | CAST_INT unary_expression
         {
             // Type casting to int
             printf("Type casting to int\n");
+            $$ = $2; // Pour simplifier, on ignore le cast dans le code intermédiaire
         }
     | CAST_FLOAT unary_expression
         {
             // Type casting to float
             printf("Type casting to float\n");
+            $$ = $2;
         }
     | CAST_DOUBLE unary_expression
         {
             // Type casting to double
             printf("Type casting to double\n");
+            $$ = $2;
         }
     | CAST_CHAR unary_expression
         {
             // Type casting to char
             printf("Type casting to char\n");
+            $$ = $2;
         }
     | CAST_BOOLEAN unary_expression
         {
             // Type casting to boolean
             printf("Type casting to boolean\n");
+            $$ = $2;
         }
     | CAST_STRING unary_expression
         {
             // Type casting to String
             printf("Type casting to String\n");
+            $$ = $2;
         }
     | CAST_CUSTOM unary_expression
         {
             // Type casting to custom type
             printf("Type casting to custom type: %s\n", $1);
+            $$ = $2;
         }
     ;
 
 postfix_expression
     : primary_expression
+        {
+            $$ = $1;
+        }
     | postfix_expression INCREMENT
+        {
+            // Génération de code pour post-incrément
+            $$ = generate_unary_op(OP_POST_INC, $1);
+        }
     | postfix_expression DECREMENT
+        {
+            // Génération de code pour post-décrément
+            $$ = generate_unary_op(OP_POST_DEC, $1);
+        }
     | postfix_expression LEFT_PAREN argument_list_opt RIGHT_PAREN
+        {
+            // Appel de fonction ou méthode
+            // Pour simplifier, on crée un temporaire
+            $$ = create_temporary();
+        }
     | postfix_expression DOT IDENTIFIER
+        {
+            // Accès à un champ
+            $$ = generate_field_load($1, $3);
+        }
     | postfix_expression DOT IDENTIFIER LEFT_PAREN argument_list_opt RIGHT_PAREN
+        {
+            // Appel de méthode
+            // Pour simplifier, on crée un temporaire
+            $$ = create_temporary();
+        }
     ;
 
 primary_expression
     : THIS
+        {
+            $$ = create_variable("this");
+        }
     | IDENTIFIER
         {
             symbol_table_entry* entry = lookup_symbol($1);
             if (entry == NULL) {
                 printf("%sSemantic_Error, %d, %d, Undeclared variable: %s%s\n", ANSI_YELLOW, line_num, column_num, $1, ANSI_RESET);
+                // Créer quand même un opérande pour éviter des erreurs en cascade
+                $$ = create_variable($1);
+            } else {
+                $$ = create_variable($1);
             }
         }
     | literal
     | LEFT_PAREN expression RIGHT_PAREN
+        {
+            $$ = $2;
+        }
     | PRINT LEFT_PAREN expression RIGHT_PAREN
+        {
+            // Appel de fonction pour print
+            $$ = $3; // Retourne l'expression
+        }
     | PRINT LEFT_PAREN RIGHT_PAREN
+        {
+            // Création d'un opérande temporaire pour le résultat
+            $$ = create_temporary();
+        }
     | NEW IDENTIFIER LEFT_PAREN argument_list_opt RIGHT_PAREN
         {
             // Vérifier si la classe existe
@@ -518,14 +718,15 @@ primary_expression
                 printf("%sSemantic_Error, %d, %d, Undefined class type: %s%s\n", ANSI_YELLOW, line_num, column_num, $2, ANSI_RESET);
             }
             printf("Object instantiation of class: %s\n", $2);
+            $$ = generate_new_object($2);
         }
     | NEW type LEFT_BRACKET expression RIGHT_BRACKET
         {
             // Création d'un tableau
             printf("Array instantiation of type: %s\n", $2);
+            $$ = generate_new_array($2, $4);
         }
     ;
-
 
 argument_list_opt
     : /* empty */
@@ -539,12 +740,36 @@ argument_list
 
 literal
     : INTEGER_LITERAL
+        {
+            $$ = create_int_literal($1);
+        }
     | FLOAT_LITERAL
+        {
+            // Pour simplifier, nous utilisons une conversion vers int
+            $$ = create_float_literal($1);
+        }
     | CHAR_LITERAL
+        {
+            // Conversion du caractère en valeur entière pour le code intermédiaire
+            $$ = create_int_literal((int)$1);
+        }
     | STRING_LITERAL
+        {
+            // Pour les chaînes, on crée un opérande temporaire
+            $$ = create_temporary();
+        }
     | TRUE_VAL
+        {
+            $$ = create_int_literal(1); // true = 1
+        }
     | FALSE_VAL
+        {
+            $$ = create_int_literal(0); // false = 0
+        }
     | NULL_VAL
+        {
+            $$ = create_int_literal(0); // null = 0 pour le code intermédiaire
+        }
     ;
 
 %%

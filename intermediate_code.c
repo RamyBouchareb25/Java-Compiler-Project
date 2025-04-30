@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "token_defs.h"
-
+#include "parser.tab.h"
 // TAC Operators - Now using the enum from token_defs.h
 typedef int tac_op;
 
@@ -15,15 +15,7 @@ typedef enum {
     OPERAND_LABEL
 } operand_type;
 
-// TAC Operand
-typedef struct {
-    operand_type type;
-    union {
-        int int_val;       // For integer literals
-        float float_val;   // For float literals
-        char* string_val;  // For variable names, label names, string literals
-    } value;
-} tac_operand;
+
 
 // Three-Address Code Instruction
 typedef struct tac_quad {
@@ -60,7 +52,7 @@ tac_operand create_float_literal(float value) {
 tac_operand create_variable(char* name) {
     tac_operand op;
     op.type = OPERAND_VARIABLE;
-    op.value.string_val = strdup(name);
+    op.value.str_val = strdup(name);
     return op;
 }
 
@@ -70,7 +62,7 @@ tac_operand create_temporary() {
     op.type = OPERAND_TEMPORARY;
     char temp_name[20];
     sprintf(temp_name, "t%d", temp_var_count++);
-    op.value.string_val = strdup(temp_name);
+    op.value.str_val = strdup(temp_name);
     return op;
 }
 
@@ -80,7 +72,7 @@ tac_operand create_label() {
     op.type = OPERAND_LABEL;
     char label_name[20];
     sprintf(label_name, "L%d", label_count++);
-    op.value.string_val = strdup(label_name);
+    op.value.str_val = strdup(label_name);
     return op;
 }
 
@@ -88,7 +80,7 @@ tac_operand create_label() {
 tac_operand create_named_label(char* name) {
     tac_operand op;
     op.type = OPERAND_LABEL;
-    op.value.string_val = strdup(name);
+    op.value.str_val = strdup(name);
     return op;
 }
 
@@ -254,7 +246,7 @@ void print_tac_operand(tac_operand op) {
         case OPERAND_VARIABLE:
         case OPERAND_TEMPORARY:
         case OPERAND_LABEL:
-            printf("%s", op.value.string_val);
+            printf("%s", op.value.str_val);
             break;
     }
 }
@@ -398,13 +390,13 @@ void free_tac_code() {
         
         // Free string values in operands
         if (temp->result.type >= OPERAND_VARIABLE) {
-            free(temp->result.value.string_val);
+            free(temp->result.value.str_val);
         }
         if (temp->arg1.type >= OPERAND_VARIABLE) {
-            free(temp->arg1.value.string_val);
+            free(temp->arg1.value.str_val);
         }
         if (temp->arg2.type >= OPERAND_VARIABLE) {
-            free(temp->arg2.value.string_val);
+            free(temp->arg2.value.str_val);
         }
         
         free(temp);

@@ -3,7 +3,7 @@
 #include <string.h>
 #include "token_defs.h"
 #include "colors.h" // Ajout de l'inclusion pour les couleurs
-
+#include "types.h" 
 // Définitions des variables et fonctions externes
 extern int line_num;
 extern int column_num;
@@ -283,8 +283,8 @@ int check_binary_operation_type(int op, type_info left, type_info right) {
     }
     
     // Comparison operations
-    if (op == '>' || op == '<' || op == GREATER_EQUAL || op == LESS_EQUAL || 
-        op == EQUAL || op == NOT_EQUAL) {
+    if (op == '>' || op == '<' || op == TYPE_OP_GREATER_EQUAL || op == TYPE_OP_LESS_EQUAL || 
+        op == TYPE_OP_EQUAL || op == TYPE_OP_NOT_EQUAL) {
         
         // Numeric comparisons
         if ((left.type_code >= TYPE_INT && left.type_code <= TYPE_DOUBLE) &&
@@ -299,13 +299,13 @@ int check_binary_operation_type(int op, type_info left, type_info right) {
         
         // Boolean comparison (only == and !=)
         if (left.type_code == TYPE_BOOLEAN && right.type_code == TYPE_BOOLEAN &&
-            (op == EQUAL || op == NOT_EQUAL)) {
+            (op == TYPE_OP_EQUAL || op == TYPE_OP_NOT_EQUAL)) {
             return TYPE_BOOLEAN;
         }
         
         // Object comparison (only == and !=)
         if (left.type_code == TYPE_OBJECT && right.type_code == TYPE_OBJECT &&
-            (op == EQUAL || op == NOT_EQUAL)) {
+            (op == TYPE_OP_EQUAL || op == TYPE_OP_NOT_EQUAL)) {
             // For object comparison, we should check if types are compatible
             // (e.g., same class or subclass), but we'll simplify for now
             return TYPE_BOOLEAN;
@@ -320,7 +320,7 @@ int check_binary_operation_type(int op, type_info left, type_info right) {
     }
     
     // Logical operations
-    if (op == AND || op == OR) {
+    if (op == TYPE_OP_AND || op == TYPE_OP_OR) {
         if (left.type_code == TYPE_BOOLEAN && right.type_code == TYPE_BOOLEAN) {
             return TYPE_BOOLEAN;
         } else {
