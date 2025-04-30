@@ -30,6 +30,7 @@ void add_symbol(char* name, char* type, int line_num, int is_method);
 symbol_table_entry* lookup_symbol(char* name);
 void enter_scope();
 void exit_scope();
+void print_symbol_table();
 %}
 
 %union {
@@ -290,11 +291,30 @@ if_statement
     ;
 
 for_statement
-    : FOR LEFT_PAREN expression_opt SEMICOLON expression_opt SEMICOLON expression_opt RIGHT_PAREN statement
-    | FOR LEFT_PAREN declaration_statement expression_opt SEMICOLON expression_opt RIGHT_PAREN statement
+    : FOR LEFT_PAREN expression_opt SEMICOLON expression_opt SEMICOLON expression_opt RIGHT_PAREN 
+        { 
+            printf("Entering standard for loop scope\n");
+            enter_scope(); 
+        }
+        statement
+        { 
+            printf("Exiting standard for loop scope\n");
+            exit_scope(); 
+        }
+    | FOR LEFT_PAREN declaration_statement expression_opt SEMICOLON expression_opt RIGHT_PAREN 
+        { 
+            printf("Entering for loop with declaration scope\n");
+            enter_scope(); 
+        }
+        statement
+        { 
+            printf("Exiting for loop with declaration scope\n");
+            exit_scope(); 
+        }
     | FOR LEFT_PAREN type IDENTIFIER COLON primary_expression RIGHT_PAREN 
         {
             // Créer un nouveau scope pour la boucle for-each
+            printf("Entering for-each loop scope\n");
             enter_scope();
             
             // Ajouter la variable d'itération à la table des symboles
@@ -304,24 +324,50 @@ for_statement
         statement
         {
             // Sortir du scope à la fin de la boucle for-each
+            printf("Exiting for-each loop scope\n");
             exit_scope();
         }
     ;
 
 while_statement
-    : WHILE LEFT_PAREN expression RIGHT_PAREN statement
+    : WHILE LEFT_PAREN expression RIGHT_PAREN 
+        { 
+            printf("Entering while loop scope\n");
+            enter_scope(); 
+        }
+        statement
+        { 
+            printf("Exiting while loop scope\n");
+            exit_scope(); 
+        }
     ;
 
 do_while_statement
-    : DO statement WHILE LEFT_PAREN expression RIGHT_PAREN SEMICOLON
+    : DO 
+        { 
+            printf("Entering do-while loop scope\n");
+            enter_scope(); 
+        }
+        statement WHILE LEFT_PAREN expression RIGHT_PAREN SEMICOLON
+        { 
+            printf("Exiting do-while loop scope\n");
+            exit_scope(); 
+        }
     ;
 
 
 switch_statement
-    : SWITCH LEFT_PAREN expression RIGHT_PAREN LEFT_BRACE switch_block RIGHT_BRACE
-      {
-        printf("Completed parsing switch statement\n");
-      }
+    : SWITCH LEFT_PAREN expression RIGHT_PAREN 
+        { 
+            printf("Entering switch statement scope\n");
+            enter_scope(); 
+        }
+        LEFT_BRACE switch_block RIGHT_BRACE
+        {
+            printf("Exiting switch statement scope\n");
+            exit_scope();
+            printf("Completed parsing switch statement\n");
+        }
     ;
 
 switch_block
@@ -571,6 +617,10 @@ int main(int argc, char **argv) {
     }
     
     yyparse();
+    
+    // Imprimer la table des symboles à la fin de l'analyse
+    printf("\n=== Analyse terminée ===\n");
+    print_symbol_table();
     
     return 0;
 }

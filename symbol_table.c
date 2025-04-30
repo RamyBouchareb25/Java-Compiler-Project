@@ -113,18 +113,31 @@ void exit_scope() {
 
 // Print all symbols in the symbol table
 void print_symbol_table() {
-    printf("\n--- Symbol Table ---\n");
-    printf("Name\t\tType\t\tScope\tLine\tIs Method\n");
-    printf("------------------------------------------------\n");
+    printf("\n%s=== SYMBOL TABLE CONTENTS ===%s\n", ANSI_GREEN, ANSI_RESET);
+    printf("%-20s %-20s %-10s %-10s %-12s %-12s\n", 
+           "NAME", "TYPE", "SCOPE", "LINE", "IS_METHOD", "IS_PARAM");
+    printf("%-20s %-20s %-10s %-10s %-12s %-12s\n",
+           "--------------------", "--------------------", "----------", "----------", "------------", "------------");
     
     symbol_table_entry* current = symbol_table;
+    int count = 0;
+    
     while (current != NULL) {
-        printf("%s\t\t%s\t\t%d\t%d\t%d\n", 
-               current->name, current->type, current->scope, 
-               current->line_defined, current->is_method);
+        printf("%-20s %-20s %-10d %-10d %-12s %-12s\n", 
+               current->name, 
+               current->type, 
+               current->scope, 
+               current->line_defined, 
+               current->is_method ? "Yes" : "No",
+               current->is_param ? "Yes" : "No");
         current = current->next;
+        count++;
     }
-    printf("------------------------------------------------\n");
+    
+    printf("%-20s %-20s %-10s %-10s %-12s %-12s\n",
+           "--------------------", "--------------------", "----------", "----------", "------------", "------------");
+    printf("%sTotal symbols: %d%s\n", ANSI_GREEN, count, ANSI_RESET);
+    printf("%s=================================%s\n", ANSI_GREEN, ANSI_RESET);
 }
 
 // Free all memory used by the symbol table
