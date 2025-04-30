@@ -6,11 +6,12 @@ class Person {
     int[] grades; // Tableau pour stocker les notes
 
     // Constructeur
-    Person(int age, char gender, boolean isStudent, int[] grades) {
-        this.age = age;
-        this.gender = gender;
-        this.isStudent = isStudent;
-        this.grades = grades;
+    Person(int paramAge, char paramGender, boolean paramIsStudent, int[] paramGrades) 
+    {
+        age = paramAge;
+        gender = paramGender;
+        isStudent = paramIsStudent;
+        grades = paramGrades;
     }
 
     // Méthode pour afficher les informations
@@ -86,3 +87,4 @@ class Main {
             System.out.println("Execution completed.");
         }
     }
+}

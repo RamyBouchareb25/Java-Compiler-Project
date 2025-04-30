@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "token_defs.h"
+#include "colors.h" // Ajout de l'inclusion pour les couleurs
 
 typedef struct symbol_table_entry {
     char* name;        // Variable/function name
@@ -9,6 +10,7 @@ typedef struct symbol_table_entry {
     int scope;         // Scope level
     int line_defined;  // Line where it was defined
     int is_method;     // 1 if method, 0 if variable
+    int is_param;      // 1 if parameter, 0 otherwise (nouvelle propriété)
     struct symbol_table_entry* next;
 } symbol_table_entry;
 
@@ -24,30 +26,40 @@ symbol_table_entry* create_symbol(char* name, char* type, int line_defined, int 
     entry->scope = current_scope;
     entry->line_defined = line_defined;
     entry->is_method = is_method;
+    entry->is_param = 0; // Par défaut, ce n'est pas un paramètre
     entry->next = NULL;
     return entry;
 }
 
 // Add a symbol to the symbol table
 void add_symbol(char* name, char* type, int line_defined, int is_method) {
-    // Check if symbol already exists in current scope only (not parent scopes)
-    symbol_table_entry* current = symbol_table;
-    while (current != NULL) {
-        if (current->scope == current_scope && strcmp(current->name, name) == 0) {
-            // For method parameters, allow shadowing of class fields
-            if (current_scope > 0 && !current->is_method) {
-                // This is a parameter shadowing a field - allow it
-                break;
-            }
-            printf("Semantic_Error, %d, %d, Redeclaration of '%s' in the same scope\n", 
-                   line_defined, 0, name);
+    // Détecte si c'est un paramètre (actuel scope > 0 et pas une méthode)
+    int is_param = (current_scope > 0 && !is_method);
+    
+    // Vérifie d'abord si un symbole existe déjà dans le scope ACTUEL
+    symbol_table_entry* existing = lookup_symbol_in_scope(name, current_scope);
+    if (existing != NULL) {
+        // Si on trouve le même symbole dans le scope actuel
+        if (!is_param) {
+            // Seulement signaler une erreur si ce n'est pas un paramètre
+            printf("%sSemantic_Error, %d, %d, Redeclaration of '%s' in the same scope%s\n", 
+                   ANSI_YELLOW, line_defined, 0, name, ANSI_RESET);
             return;
         }
-        current = current->next;
+    }
+    
+    // Vérifie si ce paramètre a le même nom qu'un champ (scope 0)
+    if (is_param) {
+        symbol_table_entry* field = lookup_symbol_in_scope(name, 0);
+        if (field != NULL) {
+            // C'est un paramètre qui masque un champ - autoriser et informer
+            printf("Parameter '%s' shadows class field\n", name);
+        }
     }
     
     // Add new symbol to the table
     symbol_table_entry* new_entry = create_symbol(name, type, line_defined, is_method);
+    new_entry->is_param = is_param;
     new_entry->next = symbol_table;
     symbol_table = new_entry;
     
@@ -126,4 +138,48 @@ void free_symbol_table() {
         free(temp);
     }
     symbol_table = NULL;
+}
+
+// Une nouvelle fonction pour aider au diagnostic des erreurs de syntaxe
+void syntax_error_diagnostics(int line, int column, const char* input_filename) {
+    FILE* file = fopen(input_filename, "r");
+    if (!file) {
+        printf("Impossible d'ouvrir le fichier source pour le diagnostic: %s\n", input_filename);
+        return;
+    }
+    
+    // Afficher le contexte de l'erreur (lignes avant et après)
+    char line_buffer[256];
+    int current_line = 0;
+    int context_lines = 3; // Nombre de lignes à afficher avant et après
+    
+    printf("\n===== Diagnostic de l'erreur de syntaxe (ligne %d, colonne %d) =====\n", line, column);
+    
+    // Lire le fichier jusqu'à quelques lignes après celle de l'erreur
+    while (fgets(line_buffer, sizeof(line_buffer), file) && current_line <= line + context_lines) {
+        current_line++;
+        
+        // Afficher les lignes dans la fenêtre de contexte
+        if (current_line >= line - context_lines && current_line <= line + context_lines) {
+            printf("%s%d: %s", (current_line == line) ? "-> " : "   ", current_line, line_buffer);
+            
+            // Indiquer la position exacte de l'erreur
+            if (current_line == line) {
+                printf("   ");
+                for (int i = 0; i < column - 1; i++) {
+                    printf(" ");
+                }
+                printf("^\n");
+            }
+        }
+    }
+    
+    printf("\nConseils courants pour cette erreur:\n");
+    printf("- Vérifiez s'il manque un point-virgule (;) à la fin d'une instruction\n");
+    printf("- Vérifiez si une accolade ou une parenthèse n'est pas correctement fermée\n");
+    printf("- Vérifiez la syntaxe des déclarations de variables et de méthodes\n");
+    printf("- Assurez-vous que les opérateurs binaires ont des opérandes valides\n");
+    printf("=================================================================\n\n");
+    
+    fclose(file);
 }

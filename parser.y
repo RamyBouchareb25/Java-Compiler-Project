@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "colors.h" // Ajout de l'inclusion pour les couleurs
 
 extern int line_num;
 extern int column_num;
@@ -46,6 +47,8 @@ void exit_scope();
 %token PRINT
 %token THIS
 
+%token CAST_INT CAST_FLOAT CAST_DOUBLE CAST_CHAR CAST_BOOLEAN CAST_STRING CAST_CUSTOM
+
 %token PLUS MINUS MULTIPLY DIVIDE MODULO
 %token INCREMENT DECREMENT
 %token ASSIGN PLUS_ASSIGN MINUS_ASSIGN MULTIPLY_ASSIGN DIVIDE_ASSIGN MODULO_ASSIGN
@@ -60,6 +63,7 @@ void exit_scope();
 %token <char_val> CHAR_LITERAL
 %token <string_val> STRING_LITERAL
 %token <id> IDENTIFIER
+%token <id> CAST_CUSTOM
 
 %type <id> type
 
@@ -119,19 +123,6 @@ method_declaration
             printf("Method declared: %s returning %s\n", $2, $1);
             exit_scope();
         }
-        | IDENTIFIER LEFT_PAREN
-        { 
-            enter_scope();
-            // Check if this is a constructor
-            // This is a constructor - it has the same name as the class
-            printf("Constructor declared for class: %s\n", $1);
-        }
-      parameter_list_opt RIGHT_PAREN LEFT_BRACE
-      statement_list 
-      RIGHT_BRACE
-        { 
-            exit_scope();
-        }
     | VOID IDENTIFIER LEFT_PAREN parameter_list_opt RIGHT_PAREN LEFT_BRACE
         { enter_scope(); }
       statement_list 
@@ -159,6 +150,14 @@ method_declaration
             printf("Main method declared\n");
             exit_scope();
         }
+    | PUBLIC STATIC VOID MAIN LEFT_PAREN RIGHT_PAREN LEFT_BRACE
+        { enter_scope(); }
+      statement_list 
+      RIGHT_BRACE
+        { 
+            printf("Main method declared without parameters\n");
+            exit_scope();
+        }
     ;
 
 parameter_list_opt
@@ -177,6 +176,13 @@ parameter
             printf("Parameter: %s of type %s\n", $2, $1);
             add_symbol($2, $1, line_num, 0);
         }
+        | type LEFT_BRACKET RIGHT_BRACKET IDENTIFIER
+        {
+            char array_type[64];
+            sprintf(array_type, "%s[]", $1); // Construct "int[]" or "float[]"
+            printf("Parameter: %s of type %s\n", $4, array_type);
+            add_symbol($4, array_type, line_num, 0);
+        }
     ;
 
 type
@@ -185,7 +191,15 @@ type
     | DOUBLE { $$ = strdup("double"); }
     | CHAR { $$ = strdup("char"); }
     | BOOLEAN { $$ = strdup("boolean"); }
-    | IDENTIFIER { $$ = $1; }  // For class types
+    | IDENTIFIER { 
+        // Vérifier si l'identifiant est une classe existante
+        symbol_table_entry* entry = lookup_symbol($1);
+        if (entry == NULL) {
+            printf("%sSemantic_Error, %d, %d, Undefined class type: %s%s\n", 
+                   ANSI_YELLOW, line_num, column_num, $1, ANSI_RESET);
+        }
+        $$ = $1; 
+    }
     | type LEFT_BRACKET RIGHT_BRACKET {
         // Handle array type like int[]
         char* array_type = malloc(strlen($1) + 3); // +3 for [] and null terminator
@@ -246,6 +260,20 @@ if_statement
 for_statement
     : FOR LEFT_PAREN expression_opt SEMICOLON expression_opt SEMICOLON expression_opt RIGHT_PAREN statement
     | FOR LEFT_PAREN declaration_statement expression_opt SEMICOLON expression_opt RIGHT_PAREN statement
+    | FOR LEFT_PAREN type IDENTIFIER COLON primary_expression RIGHT_PAREN 
+        {
+            // Créer un nouveau scope pour la boucle for-each
+            enter_scope();
+            
+            // Ajouter la variable d'itération à la table des symboles
+            printf("For-each loop with variable %s of type %s\n", $4, $3);
+            add_symbol($4, $3, line_num, 0);
+        }
+        statement
+        {
+            // Sortir du scope à la fin de la boucle for-each
+            exit_scope();
+        }
     ;
 
 while_statement
@@ -313,7 +341,7 @@ assignment_expression
         {
             symbol_table_entry* entry = lookup_symbol($1);
             if (entry == NULL) {
-                printf("Semantic_Error, %d, %d, Undeclared variable: %s\n", line_num, column_num, $1);
+                printf("%sSemantic_Error, %d, %d, Undeclared variable: %s%s\n", ANSI_YELLOW, line_num, column_num, $1, ANSI_RESET);
             }
         }
     ;
@@ -375,6 +403,41 @@ unary_expression
     | PLUS unary_expression
     | MINUS unary_expression
     | NOT unary_expression
+    | CAST_INT unary_expression
+        {
+            // Type casting to int
+            printf("Type casting to int\n");
+        }
+    | CAST_FLOAT unary_expression
+        {
+            // Type casting to float
+            printf("Type casting to float\n");
+        }
+    | CAST_DOUBLE unary_expression
+        {
+            // Type casting to double
+            printf("Type casting to double\n");
+        }
+    | CAST_CHAR unary_expression
+        {
+            // Type casting to char
+            printf("Type casting to char\n");
+        }
+    | CAST_BOOLEAN unary_expression
+        {
+            // Type casting to boolean
+            printf("Type casting to boolean\n");
+        }
+    | CAST_STRING unary_expression
+        {
+            // Type casting to String
+            printf("Type casting to String\n");
+        }
+    | CAST_CUSTOM unary_expression
+        {
+            // Type casting to custom type
+            printf("Type casting to custom type: %s\n", $1);
+        }
     ;
 
 postfix_expression
@@ -383,6 +446,7 @@ postfix_expression
     | postfix_expression DECREMENT
     | postfix_expression LEFT_PAREN argument_list_opt RIGHT_PAREN
     | postfix_expression DOT IDENTIFIER
+    | postfix_expression DOT IDENTIFIER LEFT_PAREN argument_list_opt RIGHT_PAREN
     ;
 
 primary_expression
@@ -391,12 +455,13 @@ primary_expression
         {
             symbol_table_entry* entry = lookup_symbol($1);
             if (entry == NULL) {
-                printf("Semantic_Error, %d, %d, Undeclared variable: %s\n", line_num, column_num, $1);
+                printf("%sSemantic_Error, %d, %d, Undeclared variable: %s%s\n", ANSI_YELLOW, line_num, column_num, $1, ANSI_RESET);
             }
         }
     | literal
     | LEFT_PAREN expression RIGHT_PAREN
     | PRINT LEFT_PAREN expression RIGHT_PAREN
+    | PRINT LEFT_PAREN RIGHT_PAREN
     ;
 
 argument_list_opt
@@ -422,7 +487,7 @@ literal
 %%
 
 void yyerror(const char* s) {
-    printf("Syntax_Error, %d, %d, %s\n", line_num, column_num, s);
+    printf("%sSyntax_Error, %d, %d, %s%s\n", ANSI_ORANGE, line_num, column_num, s, ANSI_RESET);
 }
 
 int main(int argc, char **argv) {

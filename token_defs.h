@@ -1,6 +1,12 @@
 #ifndef TOKEN_DEFS_H
 #define TOKEN_DEFS_H
 
+// Forward declaration of symbol table entry structure
+typedef struct symbol_table_entry symbol_table_entry;
+
+// Function prototype for lookup_symbol_in_scope
+symbol_table_entry* lookup_symbol_in_scope(char* name, int scope);
+
 // Token definitions
 #define GREATER_EQUAL 256
 #define LESS_EQUAL    257
