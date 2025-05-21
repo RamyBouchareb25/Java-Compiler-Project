@@ -2,12 +2,12 @@
 #define TOKEN_DEFS_H
 
 // Token definitions
-#define GREATER_EQUAL 256
-#define LESS_EQUAL    257
-#define EQUAL         258
-#define NOT_EQUAL     259
-#define AND           260
-#define OR            261
+// #define GREATER_EQUAL 256
+// #define LESS_EQUAL    257
+// #define EQUAL         258
+// #define NOT_EQUAL     259
+// #define AND           260
+// #define OR            261
 
 // Type definitions
 #define TYPE_INT     1

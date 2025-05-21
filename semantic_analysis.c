@@ -2,18 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "token_defs.h"
+#include "semantic_analysis.h"
+#include "symbol_table.h"
 
 
-
-// Complete symbol table entry structure
-typedef struct symbol_table_entry {
-    char* name;      // Symbol name
-    char* type;      // Type name (e.g., "int", "String", etc.)
-    int is_method;   // Flag for methods
-    int scope_level; // For scope tracking
-    // Add other fields as needed
-    struct symbol_table_entry* next; // For linked list implementation
-} symbol_table_entry;
 
 // Forward declarations
 extern symbol_table_entry* lookup_symbol(char* name);

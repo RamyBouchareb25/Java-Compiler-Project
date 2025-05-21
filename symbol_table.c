@@ -2,15 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "token_defs.h"
+#include "colors.h"
+#include "symbol_table.h"
 
-typedef struct symbol_table_entry {
-    char* name;        // Variable/function name
-    char* type;        // Data type
-    int scope;         // Scope level
-    int line_defined;  // Line where it was defined
-    int is_method;     // 1 if method, 0 if variable
-    struct symbol_table_entry* next;
-} symbol_table_entry;
 
 // Global symbol table
 symbol_table_entry* symbol_table = NULL;
@@ -39,8 +33,8 @@ void add_symbol(char* name, char* type, int line_defined, int is_method) {
                 // This is a parameter shadowing a field - allow it
                 break;
             }
-            printf("Semantic_Error, %d, %d, Redeclaration of '%s' in the same scope\n", 
-                   line_defined, 0, name);
+            printf("%sSemantic_Error, %d, %d, Redeclaration of '%s' in the same scope%s\n", 
+                   ANSI_YELLOW, line_defined, 0, name, ANSI_RESET);
             return;
         }
         current = current->next;
@@ -127,3 +121,7 @@ void free_symbol_table() {
     }
     symbol_table = NULL;
 }
+
+
+
+
